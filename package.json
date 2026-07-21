@@ -1,0 +1,43 @@
+{
+  "name": "ai-chatbot-platform",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "vercel-build": "prisma db push --skip-generate && next build",
+    "postinstall": "prisma generate",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:studio": "prisma studio"
+  },
+  "dependencies": {
+    "@paddle/paddle-js": "^1.4.2",
+    "@prisma/client": "^5.10.0",
+    "cheerio": "^1.2.0",
+    "crypto-js": "^4.2.0",
+    "firebase": "^10.8.0",
+    "mammoth": "^1.11.0",
+    "next": "^16.1.5",
+    "nodemailer": "^7.0.13",
+    "pdf-parse": "^2.4.5",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@types/crypto-js": "^4.2.2",
+    "@types/node": "^20.11.0",
+    "@types/nodemailer": "^7.0.9",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "autoprefixer": "^10.4.17",
+    "eslint": "^8.56.0",
+    "eslint-config-next": "14.1.0",
+    "postcss": "^8.4.35",
+    "prisma": "^5.10.0",
+    "tailwindcss": "^3.4.1",
+    "typescript": "^5.3.0"
+  }
+}

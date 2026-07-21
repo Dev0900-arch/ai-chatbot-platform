@@ -1,0 +1,213 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id               String         @id @default(cuid())
+  firebaseUid      String         @unique
+  email            String         @unique
+  name             String?
+  registeredDomain String?        // The one website they can use chatbot on
+  businessName     String?        // Business name for chatbot context
+  botName          String?        // Custom name for the chatbot widget
+  welcomeMessage   String?        @db.Text // Custom welcome message
+  primaryColor     String?        // Widget primary color
+  aiModel          String?        // Selected AI model
+  leadFormEnabled  Boolean        @default(true) // Pre-chat lead capture form on/off
+
+  // Onboarding
+  isOnboarded       Boolean   @default(false)
+  businessDomain    String?   // Company website domain
+  industry          String?   // Business industry
+  phoneNumber       String?   // Contact phone number
+
+  // Email verification
+  emailVerified     Boolean   @default(false)
+  verificationToken String?
+  verificationSentAt DateTime?
+
+  // Subscription
+  subscriptionType  String    @default("trial") // "free", "trial", "paid", "expired"
+  subscriptionStatus String   @default("active") // "active", "expired", "cancelled"
+  trialEndsAt       DateTime?
+  subscriptionEndsAt DateTime?
+  isLifetimeFree    Boolean   @default(false)
+
+  // Paddle
+  paddleCustomerId     String?
+  paddleSubscriptionId String?
+  paddlePriceId        String?
+
+  // Admin
+  role              String    @default("user") // "user", "admin"
+
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  conversations    Conversation[]
+  leads            Lead[]
+  knowledgeBase    KnowledgeBase[]
+  leadExports      LeadExport[]
+  crmIntegrations  CRMIntegration[]
+
+  @@index([firebaseUid])
+  @@index([email])
+  @@index([subscriptionStatus])
+  @@index([role])
+}
+
+model Conversation {
+  id           String    @id @default(cuid())
+  visitorId    String?   // Anonymous visitor ID for widget conversations
+  userId       String
+  user         User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title        String?
+  visitorEmail String?   // Email captured from visitor
+  sourcePageUrl String?  // URL where conversation started
+  isAnalyzed   Boolean   @default(false) // Whether intent scoring is complete
+  analyzedAt   DateTime? // When intent scoring was done
+  isClosed     Boolean   @default(false) // Whether the chat has been closed
+  closedAt     DateTime? // When the chat was closed
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  messages     Message[]
+  lead         Lead?     @relation(fields: [leadId], references: [id])
+  leadId       String?   @unique
+
+  // Lead capture form
+  chatPurpose         String? // Purpose selected by visitor in pre-chat form
+
+  // Lead collection state machine
+  leadCollectionState String @default("normal") // 'normal' | 'asking' | 'collecting_name' | 'collecting_email' | 'collecting_phone' | 'complete' | 'declined'
+  collectedName       String? // Temporarily store collected name
+  collectedEmail      String? // Temporarily store collected email
+  collectedPhone      String? // Temporarily store collected phone
+  visitorMessageCount Int    @default(0) // Count of visitor messages
+
+  @@index([userId])
+  @@index([visitorId])
+}
+
+model Message {
+  id             String       @id @default(cuid())
+  conversationId String
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String       // 'user' | 'assistant'
+  content        String       @db.Text
+  createdAt      DateTime     @default(now())
+
+  @@index([conversationId])
+}
+
+model Lead {
+  id                  String        @id @default(cuid())
+  userId              String
+  user                User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name                String
+  email               String
+  phone               String?
+  source              String?
+  status              String        @default("new") // 'new' | 'contacted' | 'qualified' | 'converted' | 'lost'
+  intentScore         String?       // 'hot' | 'warm' | 'cold' | 'spam'
+  conversationSummary String?       @db.Text
+  aiRecommendation    String?       @db.Text
+  sourcePageUrl       String?       // Which page visitor was on
+  notes               String?       @db.Text
+
+  // Enhanced AI Analysis Fields
+  confidenceLevel     String?       // 'high' | 'medium' | 'low'
+  buyingSignals       String?       @db.Text // JSON: {asked_pricing, requested_demo, mentioned_timeline, discussed_budget, asked_features}
+  indicators          String?       @db.Text // JSON: {urgency_level, decision_authority, budget_indication, competition_awareness}
+  aiReasoning         String?       @db.Text // Detailed explanation of classification
+  conversationHighlights String?    @db.Text // JSON array of key conversation points
+
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  conversation        Conversation?
+  syncLogs            LeadSyncLog[]
+
+  @@index([userId])
+  @@index([status])
+  @@index([intentScore])
+}
+
+model KnowledgeBase {
+  id         String    @id @default(cuid())
+  userId     String
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title      String
+  content    String    @db.Text
+  category   String?
+  sourceType String    @default("manual") // 'manual' | 'url_scrape' | 'document_upload'
+  sourceUrl  String?   @db.Text // If scraped from URL
+  fileName   String?   // If uploaded document
+  fileType   String?   // 'pdf' | 'docx' | 'txt'
+  scrapedAt  DateTime? // When URL was scraped
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([userId])
+  @@index([category])
+  @@index([sourceType])
+}
+
+model LeadExport {
+  id            String   @id @default(cuid())
+  userId        String
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  exportedAt    DateTime @default(now())
+  leadCount     Int
+  filterApplied String?
+
+  @@index([userId])
+  @@index([exportedAt])
+}
+
+model CRMIntegration {
+  id                String        @id @default(cuid())
+  userId            String
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform          String        // 'hubspot' | 'salesforce' | 'pipedrive' | 'close' | 'zoho' | 'instantly'
+  isActive          Boolean       @default(true)
+  apiKey            String?       @db.Text // Encrypted
+  apiSecret         String?       @db.Text // Encrypted (for platforms that need it)
+  domain            String?       // For Salesforce, Zoho custom domains
+  accessToken       String?       @db.Text // Encrypted (for OAuth platforms)
+  refreshToken      String?       @db.Text // Encrypted
+  tokenExpiresAt    DateTime?
+  autoSync          Boolean       @default(false) // Auto-sync new leads
+  lastSyncAt        DateTime?
+  syncStatus        String        @default("connected") // 'connected' | 'error' | 'disconnected'
+  syncError         String?       @db.Text
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  syncLogs          LeadSyncLog[]
+
+  @@unique([userId, platform])
+  @@index([userId])
+  @@index([platform])
+  @@index([isActive])
+}
+
+model LeadSyncLog {
+  id               String         @id @default(cuid())
+  crmIntegrationId String
+  crmIntegration   CRMIntegration @relation(fields: [crmIntegrationId], references: [id], onDelete: Cascade)
+  leadId           String
+  lead             Lead           @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  platform         String         // 'hubspot' | 'salesforce' | 'pipedrive' | 'close' | 'zoho' | 'instantly'
+  status           String         // 'success' | 'failed' | 'pending'
+  externalLeadId   String?        // ID in the external CRM
+  errorMessage     String?        @db.Text
+  syncedAt         DateTime       @default(now())
+
+  @@index([crmIntegrationId])
+  @@index([leadId])
+  @@index([platform])
+  @@index([status])
+  @@index([syncedAt])
+}
